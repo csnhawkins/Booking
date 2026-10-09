@@ -12,3 +12,5 @@ CREATE TABLE [Logistics].[Flight]
 GO
 ALTER TABLE [Logistics].[Flight] ADD CONSTRAINT [PK__Flight__8A9E148E9A8ED149] PRIMARY KEY CLUSTERED ([FlightID])
 GO
+CREATE NONCLUSTERED INDEX [IX_Flight_Route] ON [Logistics].[Flight] ([DepartureCity], [ArrivalCity], [DepartureTime]) INCLUDE ([Airline], [ArrivalTime], [Price], [AvailableSeats])
+GO
