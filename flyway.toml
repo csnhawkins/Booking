@@ -16,9 +16,12 @@ validateMigrationNaming = true
 mode = "all"
 
 [flywayDesktop]
+enableMigrations = true
 developmentEnvironment = "development"
 shadowEnvironment = "shadow"
-showDeploymentDecision = true
+
+  [flywayDesktop.generate]
+  undoScripts = true
 
 [redgateCompare]
 filterFile = "filter.rgf"
@@ -115,3 +118,21 @@ reseedIdentityColumns = false
 skipIntegrityChecksForForeignKeys = false
 transportClrDataTypesAsBinary = false
 useExistenceChecks = false
+
+[environments.shadow]
+url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Shadow;encrypt=mandatory;trustServerCertificate=true"
+provisioner = "clean"
+
+[environments.Production]
+url = "jdbc:sqlserver://booking-prod-sql-01;authentication=sqlPassword;databaseName=Booking;encrypt=mandatory;trustServerCertificate=true"
+
+[environments.Test]
+url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Test;encrypt=mandatory;trustServerCertificate=true"
+
+[environments.Build]
+url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Build;encrypt=mandatory;trustServerCertificate=true"
+provisioner = "clean"
+
+[environments.Check]
+url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Check;encrypt=mandatory;trustServerCertificate=true"
+provisioner = "clean"
