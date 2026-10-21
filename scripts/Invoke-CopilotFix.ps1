@@ -177,13 +177,29 @@ When finished, write the pull request description (using the structure in the re
 to this file: $summaryPath
 "@
 
+# Which MCP servers does this user's Copilot already know about? On a laptop it is usually set up in the
+# user profile. On a CI runner running as a different account it is not, so we fall back to the copy in the repo.
+$userMcpConfig  = Join-Path $env:USERPROFILE '.copilot\mcp-config.json'
+$userMcpServers = @()
+if (Test-Path $userMcpConfig) {
+    $userMcpServers = @((Get-Content $userMcpConfig -Raw | ConvertFrom-Json).mcpServers.PSObject.Properties.Name)
+}
+$mcpArgs = @()
+if ($userMcpServers -notcontains $McpServer) {
+    Write-Host "  The '$McpServer' MCP server is not configured for this user - using .github/copilot-mcp.json from the repository."
+    $mcpArgs += @('--additional-mcp-config', "@$(Join-Path $repoRoot '.github/copilot-mcp.json')")
+}
+if ($userMcpServers -contains 'monitor') {
+    $mcpArgs += @('--disable-mcp-server', 'monitor')   # keep the run focused on the Flyway project
+}
+
 $copilotArgs = @(
     '-p', $prompt,
     '--trust-folder',
     '--add-dir', $repoRoot,                         # explicit file access to the whole repository
     '--no-ask-user',
+    '--no-auto-update',                             # never download a different CLI version in the middle of a run
     '--disable-builtin-mcps',                       # no GitHub MCP: the script owns all GitHub interaction
-    '--disable-mcp-server', 'monitor',              # keep the run focused on the Flyway project
     '--allow-tool', $McpServer,                     # the whole Flyway MCP server...
     '--allow-tool', 'write',                        # file edits
     '--allow-tool', 'shell(git status:*)',          # read-only git so it can inspect its own work
@@ -195,6 +211,7 @@ $copilotArgs = @(
 )
 # ...minus the tools that are out of scope for this workflow.
 foreach ($t in $DeniedMcpTools) { $copilotArgs += @('--deny-tool', "$McpServer($t)") }
+$copilotArgs += $mcpArgs
 if ($Model) { $copilotArgs += @('--model', $Model) }
 
 & copilot @copilotArgs

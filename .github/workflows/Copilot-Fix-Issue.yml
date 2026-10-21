@@ -52,6 +52,11 @@ jobs:
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
       DB_USER: ${{ secrets.TARGET_DATABASE_USERNAME }}
       DB_PASSWORD: ${{ secrets.TARGET_DATABASE_PASSWORD }}
+      # The runner account has no git identity of its own, so give the script's commit one
+      GIT_AUTHOR_NAME: 'Copilot Flyway Agent'
+      GIT_AUTHOR_EMAIL: 'copilot-agent@users.noreply.github.com'
+      GIT_COMMITTER_NAME: 'Copilot Flyway Agent'
+      GIT_COMMITTER_EMAIL: 'copilot-agent@users.noreply.github.com'
 
     steps:
       # Fail fast with a clear message if the machine or secrets are not set up, instead of a cryptic git or MCP error later
