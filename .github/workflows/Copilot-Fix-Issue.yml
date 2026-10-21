@@ -60,7 +60,7 @@ jobs:
 
       # Make the work visible on the issue itself
       - name: Tell the issue Copilot has started
-        shell: powershell
+        shell: pwsh
         run: |
           $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh issue comment $env:ISSUE_NUMBER --body "Copilot agent has picked this up. Watch it work: $runUrl"
@@ -68,17 +68,19 @@ jobs:
       # The script does the real work - see its header for the guardrails it applies
       - name: Run Copilot fix
         id: fix
-        shell: powershell
+        shell: pwsh # PowerShell 7: Windows PowerShell 5.1 turns harmless git stderr output into terminating errors
         run: ./scripts/Invoke-CopilotFix.ps1 -IssueNumber $env:ISSUE_NUMBER -BaseBranch $env:BASE_BRANCH
 
       - name: Tell the issue where the pull request is
         if: ${{ success() }}
-        shell: powershell
-        run: gh issue comment $env:ISSUE_NUMBER --body "Copilot has opened a pull request for review: ${{ steps.fix.outputs.pr_url }}"
+        shell: pwsh
+        run: |
+          # Multi-line block on purpose: an unquoted single-line value containing ': ' is invalid YAML
+          gh issue comment $env:ISSUE_NUMBER --body "Copilot has opened a pull request for review. ${{ steps.fix.outputs.pr_url }}"
 
       - name: Tell the issue the run failed
         if: ${{ failure() }}
-        shell: powershell
+        shell: pwsh
         run: |
           $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh issue comment $env:ISSUE_NUMBER --body "The Copilot run did not complete. Logs: $runUrl"
@@ -86,7 +88,7 @@ jobs:
       # Keep the full Copilot transcript with the run for debugging and for the demo
       - name: Collect Copilot transcript
         if: ${{ always() }}
-        shell: powershell
+        shell: pwsh
         run: |
           $src = Join-Path $env:TEMP "copilot-fix-issue-$env:ISSUE_NUMBER"
           if (Test-Path $src) { Copy-Item $src -Destination copilot-logs -Recurse }
