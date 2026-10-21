@@ -88,5 +88,7 @@ Write the PR description for a reviewer who has two minutes. Use this structure:
 7. **Risk and rollback** - what could go wrong and how the undo script reverses it.
 8. **Recommendation** - approve or needs discussion, and why.
 
+Do not paste raw Flyway tool output into the description: the calling script appends a verified
+"Flyway MCP evidence" section from the session record. Just summarise the results in your own words.
 Report results exactly as the tools returned them. If something failed or was skipped, say so.
 Do not use emoji.

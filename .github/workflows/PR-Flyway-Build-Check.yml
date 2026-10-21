@@ -1,8 +1,11 @@
 # ===========================
 # Workflow: PR-Flyway-Build-Check.yml
-# Description: Cut-down version of the BUILD stage of GitHub-Flyway-CICD-Pipeline.yml, run on every pull
-#              request that changes the database. It proves the full migration history, including the
-#              new script, deploys cleanly to an empty database BEFORE a human is asked to approve.
+# Description: Runs on every pull request that changes the database, BEFORE a human is asked to approve.
+#   Job 1 (build-check)  - cut-down BUILD stage of GitHub-Flyway-CICD-Pipeline.yml: proves the full migration
+#                          history, including the new script, deploys cleanly to an empty database.
+#   Job 2 (flyway-checks) - the same Flyway Checks the pipeline runs before deploying to Test (code review and the
+#                          deployment changes report, plus dry run). Nothing here involves AI, so the result
+#                          is independent evidence. The HTML report is uploaded as a workflow artifact.
 # ===========================
 
 name: PR Flyway Build Check
@@ -19,15 +22,14 @@ on:
 permissions:
   contents: read
 
-concurrency: # Shares a group with the main pipeline's Build job - both reprovision the same Build database
-  group: booking-build-db
-  cancel-in-progress: false
-
 jobs:
   build-check:
     name: Migrate empty Build database
     runs-on: [ self-hosted, local ]
     environment: 'build' # Same GitHub environment as the pipeline, so the same secrets apply
+    concurrency: # Shares a group with the main pipeline's Build job - both reprovision the same Build database
+      group: booking-build-db
+      cancel-in-progress: false
     env:
       TARGET_DATABASE_ENVIRONMENT: 'Build' # Environment name in flyway.toml
       TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}"
@@ -61,3 +63,49 @@ jobs:
           target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
           skip-drift-check: true
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
+
+  flyway-checks:
+    name: Flyway Checks report
+    needs: build-check
+    runs-on: [ self-hosted, local ]
+    environment: 'test' # Checks read the Test database to work out what a deployment to it would change
+    concurrency: # The Check database is reprovisioned by the report, and is also used by the main pipeline's Test and Prod jobs
+      group: booking-check-db
+      cancel-in-progress: false
+    env:
+      TARGET_DATABASE_ENVIRONMENT: "Test" # What would change if this PR were deployed to Test
+      TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}"
+      TARGET_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}"
+      REPORT_ENVIRONMENT: "Check" # Throwaway database used to build the changes report
+      REPORT_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}"
+      REPORT_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}"
+      REPORT_NAME: "flyway-checks-pr-${{ github.event.pull_request.number }}.html"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # Code review (fails the job on violations), deployment changes report and dry run.
+      # Drift is skipped: a PR should not fail because of something unrelated that changed in the Test database.
+      - name: Create Check Reports
+        uses: red-gate/flyway-actions/migrations/checks@v2
+        with:
+          target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
+          target-user: ${{ env.TARGET_DATABASE_USERNAME }}
+          target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+          build-environment: ${{ env.REPORT_ENVIRONMENT }}
+          build-user: ${{ env.REPORT_DATABASE_USERNAME }}
+          build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
+          build-ok-to-erase: true
+          skip-drift-check: true
+          skip-code-scanning-upload: true
+          pre-deployment-report-name: ${{ env.REPORT_NAME }}
+          extra-args: "${{ secrets.CUSTOM_PARAMS }}"
+
+      # Point the reviewer at the report from the run summary
+      - name: Add report link to run summary
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          "### Flyway Checks" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "The Flyway Checks report for this pull request is attached to this run as the artifact **$env:REPORT_NAME**." | Add-Content $env:GITHUB_STEP_SUMMARY
