@@ -76,17 +76,17 @@ jobs:
           skip-drift-check: true
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
-      # Step 3 (Optional) - Undo all relevant migrations using corresponding rollback script, to validate they can be run. This helps to reduce the chance the script will fail during a real life rollback scenario 
-      - name: undo Build DB
-        if: ${{ env.EXECUTE_BUILD == 'true' && success() }}
-        uses: red-gate/flyway-actions/migrations/undo@v2
-        with:
-          target-migration-version: ${{ env.FIRST_UNDO_SCRIPT }}
-          target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
-          target-user: ${{ env.TARGET_DATABASE_USERNAME }}
-          target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
-          skip-drift-check: true 
-          extra-args: "${{ secrets.CUSTOM_PARAMS }}"
+      # # Step 3 (Optional) - Undo all relevant migrations using corresponding rollback script, to validate they can be run. This helps to reduce the chance the script will fail during a real life rollback scenario 
+      # - name: undo Build DB
+      #   if: ${{ env.EXECUTE_BUILD == 'true' && success() }}
+      #   uses: red-gate/flyway-actions/migrations/undo@v2
+      #   with:
+      #     target-migration-version: ${{ env.FIRST_UNDO_SCRIPT }}
+      #     target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
+      #     target-user: ${{ env.TARGET_DATABASE_USERNAME }}
+      #     target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+      #     skip-drift-check: true 
+      #     extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
       # GitHub - After migration scripts are validated, publish them as an artifact
       - name: Publish Validated Migration Scripts as Artifact
