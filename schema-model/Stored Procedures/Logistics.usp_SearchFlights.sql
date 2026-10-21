@@ -2,10 +2,11 @@ SET QUOTED_IDENTIFIER ON
 GO
 SET ANSI_NULLS ON
 GO
--- BOOK-101: the booking site needs to search flights by route. Customers
--- always know where they're flying from and to at this point, so it's
--- departure + arrival city, upcoming flights only, soonest first, first
--- page of 50.
+-- BOOK-214: customers keep typing "Lon" or "new york" instead of the exact city name and getting no
+-- results, so make the search forgiving (partial, case-insensitive match). Product also asked for a
+-- "number of flights earlier on this route" column so the site can show "3rd flight today", the
+-- engineering flag for flights with maintenance history, and to show every match instead of just
+-- the first page, cheapest first.
 
 CREATE OR ALTER PROCEDURE [Logistics].[usp_SearchFlights]
     @DepartureCity NVARCHAR(50),
@@ -14,7 +15,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT TOP (50)
+    SELECT
         f.FlightID,
         f.Airline,
         f.DepartureCity,
@@ -22,11 +23,18 @@ BEGIN
         f.DepartureTime,
         f.ArrivalTime,
         f.Price,
-        f.AvailableSeats
+        f.AvailableSeats,
+        ms.MaintenanceCount,
+        (SELECT COUNT(*)
+         FROM [Logistics].[Flight] AS earlier
+         WHERE earlier.DepartureCity = f.DepartureCity
+           AND earlier.ArrivalCity   = f.ArrivalCity
+           AND earlier.DepartureTime < f.DepartureTime) AS FlightsEarlierOnRoute
     FROM [Logistics].[Flight] AS f
-    WHERE f.DepartureCity = @DepartureCity
-      AND f.ArrivalCity   = @ArrivalCity
+    LEFT JOIN [Logistics].[FlightMaintenanceStatus] AS ms ON ms.FlightID = f.FlightID
+    WHERE LOWER(f.DepartureCity) LIKE '%' + LOWER(@DepartureCity) + '%'
+      AND LOWER(f.ArrivalCity)   LIKE '%' + LOWER(@ArrivalCity)   + '%'
       AND f.DepartureTime >= GETDATE()
-    ORDER BY f.DepartureTime ASC;
+    ORDER BY f.Price ASC;
 END
 GO
