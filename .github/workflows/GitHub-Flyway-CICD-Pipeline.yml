@@ -146,6 +146,7 @@ jobs:
           build-user: ${{ env.REPORT_DATABASE_USERNAME }}
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
+          skip-code-scanning-upload: true
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
@@ -199,6 +200,7 @@ jobs:
           build-user: ${{ env.REPORT_DATABASE_USERNAME }}
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
+          skip-code-scanning-upload: true
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
