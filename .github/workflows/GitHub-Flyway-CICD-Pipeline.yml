@@ -2,8 +2,8 @@
 # Pipeline Name: GitHub-Flyway-CICD-Pipeline.yml
 # Version: 2.0.1
 # Author: Redgate Software Ltd
-# Last Updated: 2026-03-17
-# Last Update Notes: Added reprovision mode to deploy step in BUILD stage
+# Last Updated: 2026-10-21
+# Last Update Notes: Added push-to-main trigger (database paths only); fixed Prod target environment name to match flyway.toml (Production)
 # Description: GitHub DevOps YAML Pipeline
 # ===========================
  
@@ -27,8 +27,14 @@ name: Redgate Flyway
 on:
   workflow_dispatch:
   workflow_call:  # This enables the workflow to be called from other workflows
+  push:
+    branches: [ main ] # Merging an approved PR to main kicks off Build > Test > Prod
+    paths: # Only database changes trigger a deployment
+      - 'migrations/**'
+      - 'schema-model/**'
+      - 'flyway.toml'
 env:
-  FLYWAY_CLI_INSTALL_CHECK: true # Setting to false will skip the Flyway CLI check step
+  FLYWAY_CLI_INSTALL_CHECK: false # Setting to false will skip the Flyway CLI check step
   FLYWAY_VERSION: "latest" # This outlines the version of Flyway CLI that will be downloaded if no Flyway CLI is detected on the target agent (Examples - '11.0.0' for specific version. Or 'Latest' for latest version)
   FIRST_UNDO_SCRIPT: "002" # This should match the first undo version in your project
   ACTIONS_RUNNER_DEBUG: false # Enable this for additional debug logging
@@ -36,7 +42,7 @@ env:
 jobs:
   build:
     name: Deploy Build
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'build'
     env:
       TARGET_DATABASE_ENVIRONMENT: 'Build' # This variable refers to the environment name present in the Flyway Projects TOML file. 
@@ -70,17 +76,17 @@ jobs:
           skip-drift-check: true
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
-      # Step 3 (Optional) - Undo all relevant migrations using corresponding rollback script, to validate they can be run. This helps to reduce the chance the script will fail during a real life rollback scenario 
-      - name: undo Build DB
-        if: ${{ env.EXECUTE_BUILD == 'true' && success() }}
-        uses: red-gate/flyway-actions/migrations/undo@v2
-        with:
-          target-migration-version: ${{ env.FIRST_UNDO_SCRIPT }}
-          target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
-          target-user: ${{ env.TARGET_DATABASE_USERNAME }}
-          target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
-          skip-drift-check: true 
-          extra-args: "${{ secrets.CUSTOM_PARAMS }}"
+      # # Step 3 (Optional) - Undo all relevant migrations using corresponding rollback script, to validate they can be run. This helps to reduce the chance the script will fail during a real life rollback scenario 
+      # - name: undo Build DB
+      #   if: ${{ env.EXECUTE_BUILD == 'true' && success() }}
+      #   uses: red-gate/flyway-actions/migrations/undo@v2
+      #   with:
+      #     target-migration-version: ${{ env.FIRST_UNDO_SCRIPT }}
+      #     target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
+      #     target-user: ${{ env.TARGET_DATABASE_USERNAME }}
+      #     target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+      #     skip-drift-check: true 
+      #     extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
       # GitHub - After migration scripts are validated, publish them as an artifact
       - name: Publish Validated Migration Scripts as Artifact
@@ -101,7 +107,7 @@ jobs:
 
   test:
     name: Deploy Test
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'test' # This refers to GitHub's Environment name
     if: ${{ true }} # Set this variable to false to temporarily disable the job
     needs: build
@@ -140,6 +146,7 @@ jobs:
           build-user: ${{ env.REPORT_DATABASE_USERNAME }}
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
+          skip-code-scanning-upload: true
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
@@ -154,12 +161,12 @@ jobs:
 
   prod:
     name: Deploy Prod
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'prod'
     if: ${{ true }} # Set this variable to false to temporarily disable the job
     needs: test
     env:
-      TARGET_DATABASE_ENVIRONMENT: "Prod" # Refers to the environment name in the Flyway Project TOML file.
+      TARGET_DATABASE_ENVIRONMENT: "Production" # Refers to the environment name in the Flyway Project TOML file (flyway.toml defines [environments.Production])
       TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}" 
       TARGET_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}" 
       REPORT_ENVIRONMENT: "Check"
@@ -193,6 +200,7 @@ jobs:
           build-user: ${{ env.REPORT_DATABASE_USERNAME }}
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
+          skip-code-scanning-upload: true
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
