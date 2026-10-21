@@ -75,6 +75,30 @@ jobs:
             }
           }
           Write-Host "Runner is running as: $env:USERDOMAIN\$env:USERNAME"
+
+          # Prove the PAT works against THIS repository before checkout tries to use it. Each call needs a different permission,
+          # so the failing line tells you exactly what the token is missing.
+          if ($env:GH_TOKEN -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+            $repo = $env:GITHUB_REPOSITORY
+            $who = gh api user --jq .login 2>&1
+            if ($LASTEXITCODE -ne 0) { $problems += "COPILOT_FIX_GH_TOKEN was rejected by GitHub (expired, revoked, or pasted with extra characters): $who" }
+            else {
+              Write-Host "Token belongs to: $who"
+              $null = gh api "repos/$repo" --jq .full_name 2>&1
+              if ($LASTEXITCODE -ne 0) { $problems += "Token cannot see $repo. For a fine-grained PAT, the resource owner must be the repo owner and $repo must be selected under Repository access." }
+              else {
+                $null = gh api "repos/$repo/branches/$env:BASE_BRANCH" --jq .name 2>&1
+                if ($LASTEXITCODE -ne 0) { $problems += "Token cannot read branch '$env:BASE_BRANCH' (needs Contents: read), or the branch does not exist." }
+                $canPush = gh api "repos/$repo" --jq .permissions.push 2>&1
+                if ($canPush -ne 'true') { $problems += "Token cannot push (needs Contents: read and write). permissions.push returned '$canPush'." }
+                $null = gh api "repos/$repo/pulls?per_page=1" --jq length 2>&1
+                if ($LASTEXITCODE -ne 0) { $problems += "Token cannot read pull requests (needs Pull requests: read and write)." }
+                $null = gh api "repos/$repo/issues/$env:ISSUE_NUMBER" --jq .number 2>&1
+                if ($LASTEXITCODE -ne 0) { $problems += "Token cannot read issue #$env:ISSUE_NUMBER (needs Issues: read and write)." }
+              }
+            }
+          }
+
           if ($problems) { $problems | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "Preflight OK"
 
