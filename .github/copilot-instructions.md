@@ -5,11 +5,32 @@ changed through a controlled workflow. Follow these rules exactly; they are the 
 
 ## How changes flow
 
-1. You edit the **schema-model** (the source-controlled definition of each object).
+1. You edit the **schema-model** file directly (the source-controlled definition of each object).
 2. The **Flyway MCP** generates the migration and undo scripts from that change. You do not write them.
-3. The Flyway MCP validates the scripts and runs code review checks.
+3. The Flyway MCP code-reviews the new migration and test-runs it against the shadow database.
 4. You summarise the result in the pull request for a human to approve.
-5. After merge to `main`, the GitHub Actions pipeline deploys Build > Test > Production.
+5. After merge to `main`, the GitHub Actions pipeline deploys Build > Test > Production and produces
+   the Flyway Check report (Test and Production).
+
+## Flyway MCP tool sequence
+
+Use exactly these tools, in this order. The project folder is the repository root (where `flyway.toml` is).
+
+1. `load_project` - load the repository root; keep the returned `workspaceId`.
+2. Edit the schema-model file (normal file edit, not an MCP tool).
+3. `reload_project` - pick up your schema-model edit.
+4. `create_diff_migrations` - diffs the schema model against the migrations using the shadow environment.
+   Check the diff contains only the object you changed. If it contains anything else, stop and report it.
+5. `generate_migrations` - pass the `migrationsDiffId` and `generateUndoScripts` set to true, with a short
+   description that includes the BOOK ticket. Confirm both a `V` and a matching `U` script were created.
+6. `review_code` - run it on the generated V script. Fix any violation by changing the schema-model and
+   regenerating, or explain it in the PR.
+7. `test_migrate` - must succeed against the shadow database. If the shadow database already contains a
+   version you are about to generate (left over from an earlier attempt), call it with `rebuild` set to true.
+
+Do NOT call `update_schema_model`, `update_development`, `create_diff_schema_model`,
+`create_diff_development` or `create_schema_model_checkpoint`. They work against the development
+database and are not part of this workflow.
 
 ## Project layout
 
@@ -28,8 +49,8 @@ changed through a controlled workflow. Follow these rules exactly; they are the 
   `SET QUOTED_IDENTIFIER ON` / `SET ANSI_NULLS ON` header as in neighbouring files.
 - Preserve existing behaviour and result-set shape (column names, types, order) unless the issue
   explicitly says otherwise. If you must change behaviour, call it out in the PR.
-- Use the Flyway MCP to generate the migration (next version, with a matching undo script), to validate
-  it, and to run the code review checks. Fix anything it flags, or explain in the PR why you did not.
+- Use the Flyway MCP tool sequence above to generate the migration (with a matching undo script), code
+  review it and test-run it. Fix anything it flags, or explain in the PR why you did not.
 - Keep the BOOK ticket reference in a comment at the top of any changed object.
 
 ### Do not
@@ -61,8 +82,9 @@ Write the PR description for a reviewer who has two minutes. Use this structure:
 2. **Why it was slow / what the problem was** - the root cause.
 3. **Behaviour check** - confirm results are unchanged, or list every difference.
 4. **Generated scripts** - names of the V and U scripts the Flyway MCP produced.
-5. **Validation results** - migrate and undo against the shadow database: pass/fail.
-6. **Code review results** - the Flyway check findings, and how each was handled.
+5. **Validation results** - `test_migrate` against the shadow database: pass/fail. State plainly that the undo
+   script was generated and code-reviewed but NOT executed, because no tool available to you can run it.
+6. **Code review results** - the `review_code` findings, and how each was handled.
 7. **Risk and rollback** - what could go wrong and how the undo script reverses it.
 8. **Recommendation** - approve or needs discussion, and why.
 

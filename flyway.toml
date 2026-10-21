@@ -136,3 +136,7 @@ provisioner = "clean"
 [environments.Check]
 url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Check;encrypt=mandatory;trustServerCertificate=true"
 provisioner = "clean"
+
+[environments.development]
+url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Development;encrypt=mandatory;trustServerCertificate=true"
+displayName = "Development database"
