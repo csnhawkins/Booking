@@ -2,8 +2,8 @@
 # Pipeline Name: GitHub-Flyway-CICD-Pipeline.yml
 # Version: 2.0.1
 # Author: Redgate Software Ltd
-# Last Updated: 2026-03-17
-# Last Update Notes: Added reprovision mode to deploy step in BUILD stage
+# Last Updated: 2026-10-21
+# Last Update Notes: Added push-to-main trigger (database paths only); fixed Prod target environment name to match flyway.toml (Production)
 # Description: GitHub DevOps YAML Pipeline
 # ===========================
  
@@ -27,6 +27,12 @@ name: Redgate Flyway
 on:
   workflow_dispatch:
   workflow_call:  # This enables the workflow to be called from other workflows
+  push:
+    branches: [ main ] # Merging an approved PR to main kicks off Build > Test > Prod
+    paths: # Only database changes trigger a deployment
+      - 'migrations/**'
+      - 'schema-model/**'
+      - 'flyway.toml'
 env:
   FLYWAY_CLI_INSTALL_CHECK: true # Setting to false will skip the Flyway CLI check step
   FLYWAY_VERSION: "latest" # This outlines the version of Flyway CLI that will be downloaded if no Flyway CLI is detected on the target agent (Examples - '11.0.0' for specific version. Or 'Latest' for latest version)
@@ -159,7 +165,7 @@ jobs:
     if: ${{ true }} # Set this variable to false to temporarily disable the job
     needs: test
     env:
-      TARGET_DATABASE_ENVIRONMENT: "Prod" # Refers to the environment name in the Flyway Project TOML file.
+      TARGET_DATABASE_ENVIRONMENT: "Production" # Refers to the environment name in the Flyway Project TOML file (flyway.toml defines [environments.Production])
       TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}" 
       TARGET_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}" 
       REPORT_ENVIRONMENT: "Check"
