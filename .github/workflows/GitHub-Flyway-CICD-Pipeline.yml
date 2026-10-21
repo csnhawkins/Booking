@@ -34,7 +34,7 @@ on:
       - 'schema-model/**'
       - 'flyway.toml'
 env:
-  FLYWAY_CLI_INSTALL_CHECK: true # Setting to false will skip the Flyway CLI check step
+  FLYWAY_CLI_INSTALL_CHECK: false # Setting to false will skip the Flyway CLI check step
   FLYWAY_VERSION: "latest" # This outlines the version of Flyway CLI that will be downloaded if no Flyway CLI is detected on the target agent (Examples - '11.0.0' for specific version. Or 'Latest' for latest version)
   FIRST_UNDO_SCRIPT: "002" # This should match the first undo version in your project
   ACTIONS_RUNNER_DEBUG: false # Enable this for additional debug logging
