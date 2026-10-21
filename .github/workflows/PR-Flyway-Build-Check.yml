@@ -1,0 +1,63 @@
+# ===========================
+# Workflow: PR-Flyway-Build-Check.yml
+# Description: Cut-down version of the BUILD stage of GitHub-Flyway-CICD-Pipeline.yml, run on every pull
+#              request that changes the database. It proves the full migration history, including the
+#              new script, deploys cleanly to an empty database BEFORE a human is asked to approve.
+# ===========================
+
+name: PR Flyway Build Check
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+    paths: # Only database changes need this check
+      - 'migrations/**'
+      - 'schema-model/**'
+      - 'flyway.toml'
+
+permissions:
+  contents: read
+
+concurrency: # Shares a group with the main pipeline's Build job - both reprovision the same Build database
+  group: booking-build-db
+  cancel-in-progress: false
+
+jobs:
+  build-check:
+    name: Migrate empty Build database
+    runs-on: [ self-hosted, local ]
+    environment: 'build' # Same GitHub environment as the pipeline, so the same secrets apply
+    env:
+      TARGET_DATABASE_ENVIRONMENT: 'Build' # Environment name in flyway.toml
+      TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}"
+      TARGET_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}"
+      FIRST_UNDO_SCRIPT: "002" # Same value as the main pipeline
+      RUN_UNDO: 'false' # Set to 'true' to also undo everything after migrating (mirrors the commented-out step in the main pipeline)
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # Migrate every script from scratch. This is the quickest way to find a script that cannot deploy.
+      - name: Migrate Build DB
+        uses: red-gate/flyway-actions/migrations/deploy@v2
+        with:
+          target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
+          target-user: ${{ env.TARGET_DATABASE_USERNAME }}
+          target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+          provision-mode: "reprovision" # Drops and recreates the Build database. Throwaway environment only.
+          skip-drift-check: true
+          extra-args: "${{ secrets.CUSTOM_PARAMS }}"
+
+      # Optional: prove the undo scripts run, so a real rollback is not the first time they are executed
+      - name: Undo Build DB
+        if: ${{ env.RUN_UNDO == 'true' }}
+        uses: red-gate/flyway-actions/migrations/undo@v2
+        with:
+          target-migration-version: ${{ env.FIRST_UNDO_SCRIPT }}
+          target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
+          target-user: ${{ env.TARGET_DATABASE_USERNAME }}
+          target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+          skip-drift-check: true
+          extra-args: "${{ secrets.CUSTOM_PARAMS }}"

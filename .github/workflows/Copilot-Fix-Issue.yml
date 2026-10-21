@@ -1,0 +1,100 @@
+# ===========================
+# Workflow: Copilot-Fix-Issue.yml
+# Description: Adding the 'copilot-fix' label to an issue hands it to the Copilot CLI agent running on the
+#              self-hosted runner. Copilot edits the schema-model and drives the Flyway MCP to generate and
+#              validate the migration, then scripts/Invoke-CopilotFix.ps1 opens a PR for human approval.
+# ===========================
+#
+# Secrets required (repository secrets):
+#   COPILOT_FIX_GH_TOKEN  - PAT used by git and gh: contents (write), pull requests (write), issues (write).
+#                           A PAT is used instead of the default token so the PR it opens triggers the PR check workflow.
+#   COPILOT_GITHUB_TOKEN  - PAT with the 'Copilot Requests' permission, used by the Copilot CLI.
+#
+# Note: for 'issues' events GitHub always runs the copy of this file on the DEFAULT branch. While testing on a
+# feature branch, use 'Run workflow' (workflow_dispatch) and pass the branch name as base_branch.
+
+name: Copilot Fix Issue
+
+on:
+  issues:
+    types: [ labeled ]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to fix'
+        required: true
+      base_branch:
+        description: 'Branch to start from and open the PR against'
+        required: true
+        default: 'main'
+
+permissions:
+  contents: read # The PAT does the writing; the default token only needs to read
+
+concurrency: # Only one Copilot run at a time - they share the shadow database
+  group: copilot-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    name: Copilot fixes the issue
+    runs-on: [ self-hosted, local ] # The HAWKINS-LAPTOP runner, which has the Copilot CLI and Flyway MCP installed
+    # Guard: a manual run, or the 'copilot-fix' label applied by the repository owner. The agent can run commands on this
+    # machine, so nobody else should be able to start it by labelling an issue.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'copilot-fix' && github.actor == github.repository_owner)
+    env:
+      ISSUE_NUMBER: ${{ inputs.issue_number || github.event.issue.number }}
+      BASE_BRANCH: ${{ inputs.base_branch || github.event.repository.default_branch }}
+      GH_TOKEN: ${{ secrets.COPILOT_FIX_GH_TOKEN }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.COPILOT_FIX_GH_TOKEN }} # So the script's 'git push' uses the PAT
+
+      # Make the work visible on the issue itself
+      - name: Tell the issue Copilot has started
+        shell: powershell
+        run: |
+          $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue comment $env:ISSUE_NUMBER --body "Copilot agent has picked this up. Watch it work: $runUrl"
+
+      # The script does the real work - see its header for the guardrails it applies
+      - name: Run Copilot fix
+        id: fix
+        shell: powershell
+        run: ./scripts/Invoke-CopilotFix.ps1 -IssueNumber $env:ISSUE_NUMBER -BaseBranch $env:BASE_BRANCH
+
+      - name: Tell the issue where the pull request is
+        if: ${{ success() }}
+        shell: powershell
+        run: gh issue comment $env:ISSUE_NUMBER --body "Copilot has opened a pull request for review: ${{ steps.fix.outputs.pr_url }}"
+
+      - name: Tell the issue the run failed
+        if: ${{ failure() }}
+        shell: powershell
+        run: |
+          $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue comment $env:ISSUE_NUMBER --body "The Copilot run did not complete. Logs: $runUrl"
+
+      # Keep the full Copilot transcript with the run for debugging and for the demo
+      - name: Collect Copilot transcript
+        if: ${{ always() }}
+        shell: powershell
+        run: |
+          $src = Join-Path $env:TEMP "copilot-fix-issue-$env:ISSUE_NUMBER"
+          if (Test-Path $src) { Copy-Item $src -Destination copilot-logs -Recurse }
+
+      - name: Upload Copilot transcript
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-transcript
+          path: copilot-logs/**
+          if-no-files-found: ignore

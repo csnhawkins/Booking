@@ -44,8 +44,11 @@ jobs:
     name: Deploy Build
     runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'build'
+    concurrency: # The Build database is reprovisioned on every run, so never let two runs (this pipeline or the PR check) use it at once
+      group: booking-build-db
+      cancel-in-progress: false
     env:
-      TARGET_DATABASE_ENVIRONMENT: 'Build' # This variable refers to the environment name present in the Flyway Projects TOML file. 
+      TARGET_DATABASE_ENVIRONMENT: 'Build' # This variable refers to the environment name present in the Flyway Projects TOML file.
       TARGET_DATABASE_USERNAME: "${{ secrets.TARGET_DATABASE_USERNAME }}"
       TARGET_DATABASE_PASSWORD: "${{ secrets.TARGET_DATABASE_PASSWORD }}"
       EXECUTE_BUILD: 'true' # Turn to false to skip the build stage tasks
