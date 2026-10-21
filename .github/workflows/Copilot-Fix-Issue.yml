@@ -39,6 +39,7 @@ jobs:
   fix:
     name: Copilot fixes the issue
     runs-on: [ self-hosted, local ] # The HAWKINS-LAPTOP runner, which has the Copilot CLI and Flyway MCP installed
+    environment: 'build' # Gives this job the database login secrets (TARGET_DATABASE_USERNAME / PASSWORD) used by the Flyway MCP
     # Guard: a manual run, or the 'copilot-fix' label applied by the repository owner. The agent can run commands on this
     # machine, so nobody else should be able to start it by labelling an issue.
     if: >-
@@ -49,14 +50,54 @@ jobs:
       BASE_BRANCH: ${{ inputs.base_branch || github.event.repository.default_branch }}
       GH_TOKEN: ${{ secrets.COPILOT_FIX_GH_TOKEN }}
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      DB_USER: ${{ secrets.TARGET_DATABASE_USERNAME }}
+      DB_PASSWORD: ${{ secrets.TARGET_DATABASE_PASSWORD }}
 
     steps:
+      # Fail fast with a clear message if the machine or secrets are not set up, instead of a cryptic git or MCP error later
+      - name: Preflight - secrets and tools
+        shell: pwsh
+        run: |
+          $problems = @()
+          foreach ($name in 'GH_TOKEN', 'COPILOT_GITHUB_TOKEN', 'DB_USER', 'DB_PASSWORD') {
+            if (-not (Get-Item "env:$name" -ErrorAction SilentlyContinue).Value) {
+              $problems += "Secret for $name is empty. Check the secret exists as a repository secret (or in the 'build' environment) and the PAT has not expired."
+            }
+          }
+          foreach ($tool in 'git', 'gh', 'copilot', 'flyway') {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+              $problems += "'$tool' is not on PATH for the account the runner service runs as ($env:USERDOMAIN\$env:USERNAME)."
+            }
+          }
+          Write-Host "Runner is running as: $env:USERDOMAIN\$env:USERNAME"
+          if ($problems) { $problems | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host "Preflight OK"
+
       - name: Checkout Repository
         uses: actions/checkout@v6
         with:
           ref: ${{ env.BASE_BRANCH }}
           fetch-depth: 0
           token: ${{ secrets.COPILOT_FIX_GH_TOKEN }} # So the script's 'git push' uses the PAT
+
+      # The Flyway MCP reads database logins from flyway.user.toml. That file is gitignored, so a fresh checkout
+      # does not have it. Write it from the secrets for this run only (it is deleted again at the end of the job).
+      - name: Write database logins for the Flyway MCP
+        shell: pwsh
+        run: |
+          # Escape backslash and double quote so any password is valid inside a TOML string
+          $u = $env:DB_USER     -replace '\\', '\\' -replace '"', '\"'
+          $p = $env:DB_PASSWORD -replace '\\', '\\' -replace '"', '\"'
+          @"
+          [environments.shadow]
+          user = "$u"
+          password = "$p"
+
+          [environments.development]
+          user = "$u"
+          password = "$p"
+          "@ | Set-Content -Path flyway.user.toml -Encoding UTF8
+          Write-Host "flyway.user.toml written (shadow and development logins)"
 
       # Make the work visible on the issue itself
       - name: Tell the issue Copilot has started
@@ -84,6 +125,12 @@ jobs:
         run: |
           $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh issue comment $env:ISSUE_NUMBER --body "The Copilot run did not complete. Logs: $runUrl"
+
+      # Never leave database logins on disk after the job
+      - name: Remove database logins
+        if: ${{ always() }}
+        shell: pwsh
+        run: Remove-Item flyway.user.toml -Force -ErrorAction SilentlyContinue
 
       # Keep the full Copilot transcript with the run for debugging and for the demo
       - name: Collect Copilot transcript
