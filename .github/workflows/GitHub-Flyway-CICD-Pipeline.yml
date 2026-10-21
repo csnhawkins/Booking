@@ -42,7 +42,7 @@ env:
 jobs:
   build:
     name: Deploy Build
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'build'
     env:
       TARGET_DATABASE_ENVIRONMENT: 'Build' # This variable refers to the environment name present in the Flyway Projects TOML file. 
@@ -107,7 +107,7 @@ jobs:
 
   test:
     name: Deploy Test
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'test' # This refers to GitHub's Environment name
     if: ${{ true }} # Set this variable to false to temporarily disable the job
     needs: build
@@ -160,7 +160,7 @@ jobs:
 
   prod:
     name: Deploy Prod
-    runs-on: "self-hosted" # Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
+    runs-on: [ self-hosted, local ] # Only runners carrying BOTH the 'self-hosted' and 'local' labels pick this up (the HAWKINS-LAPTOP runner). Options - self-hosted/ubuntu-latest/windows-latest (See here for more details on GitHub hosted runners - https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners)
     environment: 'prod'
     if: ${{ true }} # Set this variable to false to temporarily disable the job
     needs: test
