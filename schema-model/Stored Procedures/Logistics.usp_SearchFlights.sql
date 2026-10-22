@@ -7,6 +7,10 @@ GO
 -- "number of flights earlier on this route" column so the site can show "3rd flight today", the
 -- engineering flag for flights with maintenance history, and to show every match instead of just
 -- the first page, cheapest first.
+-- BOOK-215: made SARGable. City search is now a case-insensitive prefix match (database collation is
+-- SQL_Latin1_General_CP1_CI_AS) so IX_Flight_Route can be used; the per-row correlated count is a
+-- RANK() window (RANK() - 1 = rows with a strictly earlier DepartureTime, past flights included);
+-- maintenance counts are aggregated only for the matching flights.
 
 CREATE OR ALTER PROCEDURE [Logistics].[usp_SearchFlights]
     @DepartureCity NVARCHAR(50),
@@ -15,26 +19,39 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @Now DATETIME = GETDATE();
+
+    WITH RouteFlights AS
+    (
+        SELECT
+            f.FlightID,
+            f.Airline,
+            f.DepartureCity,
+            f.ArrivalCity,
+            f.DepartureTime,
+            f.ArrivalTime,
+            f.Price,
+            f.AvailableSeats,
+            RANK() OVER (PARTITION BY f.DepartureCity, f.ArrivalCity ORDER BY f.DepartureTime) - 1 AS FlightsEarlierOnRoute
+        FROM [Logistics].[Flight] AS f
+        WHERE f.DepartureCity LIKE @DepartureCity + '%'
+          AND f.ArrivalCity   LIKE @ArrivalCity   + '%'
+    )
     SELECT
-        f.FlightID,
-        f.Airline,
-        f.DepartureCity,
-        f.ArrivalCity,
-        f.DepartureTime,
-        f.ArrivalTime,
-        f.Price,
-        f.AvailableSeats,
-        ms.MaintenanceCount,
-        (SELECT COUNT(*)
-         FROM [Logistics].[Flight] AS earlier
-         WHERE earlier.DepartureCity = f.DepartureCity
-           AND earlier.ArrivalCity   = f.ArrivalCity
-           AND earlier.DepartureTime < f.DepartureTime) AS FlightsEarlierOnRoute
-    FROM [Logistics].[Flight] AS f
-    LEFT JOIN [Logistics].[FlightMaintenanceStatus] AS ms ON ms.FlightID = f.FlightID
-    WHERE LOWER(f.DepartureCity) LIKE '%' + LOWER(@DepartureCity) + '%'
-      AND LOWER(f.ArrivalCity)   LIKE '%' + LOWER(@ArrivalCity)   + '%'
-      AND f.DepartureTime >= GETDATE()
-    ORDER BY f.Price ASC;
+        rf.FlightID,
+        rf.Airline,
+        rf.DepartureCity,
+        rf.ArrivalCity,
+        rf.DepartureTime,
+        rf.ArrivalTime,
+        rf.Price,
+        rf.AvailableSeats,
+        (SELECT COUNT(m.LogID)
+         FROM [Logistics].[MaintenanceLog] AS m
+         WHERE m.FlightID = rf.FlightID) AS MaintenanceCount,
+        rf.FlightsEarlierOnRoute
+    FROM RouteFlights AS rf
+    WHERE rf.DepartureTime >= @Now
+    ORDER BY rf.Price ASC;
 END
 GO
