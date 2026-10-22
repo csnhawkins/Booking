@@ -11,6 +11,7 @@ mixed = true
 outOfOrder = true
 schemaModelLocation = "schema-model"
 validateMigrationNaming = true
+publishResult = true
 
 [flyway.sqlserver.clean]
 mode = "all"
@@ -123,6 +124,9 @@ useExistenceChecks = false
 url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Shadow;encrypt=mandatory;trustServerCertificate=true"
 provisioner = "clean"
 
+  [environments.shadow.flyway]
+  publishResult = false
+
 [environments.Production]
 url = "jdbc:sqlserver://booking-prod-sql-01;authentication=sqlPassword;databaseName=Booking;encrypt=mandatory;trustServerCertificate=true"
 
@@ -133,10 +137,19 @@ url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseNa
 url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Build;encrypt=mandatory;trustServerCertificate=true"
 provisioner = "clean"
 
+  [environments.Build.flyway]
+  publishResult = false
+
 [environments.Check]
 url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Check;encrypt=mandatory;trustServerCertificate=true"
 provisioner = "clean"
 
+  [environments.Check.flyway]
+  publishResult = false
+
 [environments.development]
 url = "jdbc:sqlserver://booking-dev-sql-01;authentication=sqlPassword;databaseName=Booking_Development;encrypt=mandatory;trustServerCertificate=true"
 displayName = "Development database"
+
+  [environments.development.flyway]
+  publishResult = false
