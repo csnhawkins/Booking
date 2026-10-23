@@ -150,6 +150,7 @@ jobs:
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
           skip-code-scanning-upload: true
+          fail-on-drift: false # Drift is reported in the Check report (and Flyway Insights) but does not stop the deployment
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
@@ -204,6 +205,7 @@ jobs:
           build-password: ${{ env.REPORT_DATABASE_PASSWORD }}
           build-ok-to-erase: true
           skip-code-scanning-upload: true
+          fail-on-drift: false # Drift is reported in the Check report (and Flyway Insights) but does not stop the deployment
           pre-deployment-report-name: "flyway-checks-${{ env.TARGET_DATABASE_ENVIRONMENT }}.html"
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
