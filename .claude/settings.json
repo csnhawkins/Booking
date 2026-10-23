@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__flyway__load_project",
+      "mcp__flyway__reload_project",
+      "mcp__flyway__create_diff_schema_model",
+      "mcp__flyway__get_diff_details",
+      "mcp__flyway__update_schema_model",
+      "mcp__flyway__create_diff_migrations",
+      "mcp__flyway__generate_migrations",
+      "mcp__flyway__review_code",
+      "mcp__flyway__test_migrate",
+      "mcp__local",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git switch:*)"
+    ],
+    "deny": [
+      "mcp__flyway__update_development",
+      "mcp__flyway__create_diff_development",
+      "mcp__flyway__create_schema_model_checkpoint",
+      "Edit(/migrations/**)",
+      "Write(/migrations/**)",
+      "Read(/flyway.user.toml)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ]
+  }
+}
