@@ -24,16 +24,22 @@ BEGIN
         f.ArrivalTime,
         f.Price,
         f.AvailableSeats,
-        ms.MaintenanceCount,
+        -- Count maintenance rows only for the flights returned. The previous join to the
+        -- FlightMaintenanceStatus view aggregated every flight in the table (about 1M rows) on every search.
+        (SELECT COUNT(m.LogID)
+         FROM [Logistics].[MaintenanceLog] AS m
+         WHERE m.FlightID = f.FlightID) AS MaintenanceCount,
+        -- Seeks on IX_Flight_Route (DepartureCity, ArrivalCity, DepartureTime) once per returned row.
         (SELECT COUNT(*)
          FROM [Logistics].[Flight] AS earlier
          WHERE earlier.DepartureCity = f.DepartureCity
            AND earlier.ArrivalCity   = f.ArrivalCity
            AND earlier.DepartureTime < f.DepartureTime) AS FlightsEarlierOnRoute
     FROM [Logistics].[Flight] AS f
-    LEFT JOIN [Logistics].[FlightMaintenanceStatus] AS ms ON ms.FlightID = f.FlightID
-    WHERE LOWER(f.DepartureCity) LIKE '%' + LOWER(@DepartureCity) + '%'
-      AND LOWER(f.ArrivalCity)   LIKE '%' + LOWER(@ArrivalCity)   + '%'
+    -- Prefix match ("Lon" finds "London") so IX_Flight_Route can be used for a seek. The database collation
+    -- is case-insensitive, so LOWER() is not needed and would stop the index being used.
+    WHERE f.DepartureCity LIKE @DepartureCity + N'%'
+      AND f.ArrivalCity   LIKE @ArrivalCity   + N'%'
       AND f.DepartureTime >= GETDATE()
     ORDER BY f.Price ASC;
 END
