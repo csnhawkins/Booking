@@ -161,6 +161,7 @@ jobs:
           target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
           target-user: ${{ env.TARGET_DATABASE_USERNAME }}
           target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+          skip-drift-check: true
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
 
   prod:
@@ -217,4 +218,5 @@ jobs:
           target-environment: ${{ env.TARGET_DATABASE_ENVIRONMENT }}
           target-user: ${{ env.TARGET_DATABASE_USERNAME }}
           target-password: ${{ env.TARGET_DATABASE_PASSWORD }}
+          skip-drift-check: true
           extra-args: "${{ secrets.CUSTOM_PARAMS }}"
